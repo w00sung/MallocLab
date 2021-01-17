@@ -205,35 +205,27 @@ static void *find_fit(size_t asize)
     return NULL;
 }
 
+// while 문으로 고쳐보자!
 static void *find_next_fit(size_t asize)
 {
-    // printf("LETS FIND OUT !\n");
     char *strt = next_fitp;
 
-    // 나를 만나기 직전까지 달린다.
-    while (NEXT_BLKP(strt) != next_fitp)
+    for (; GET_SIZE(HDRP(next_fitp)) > 0; next_fitp = NEXT_BLKP(next_fitp))
     {
-        // strt도 검정하고 넘어간다.
-        if (!GET_ALLOC(HDRP(strt)) && GET_SIZE(HDRP(strt)) >= asize)
+        if (GET_SIZE(HDRP(next_fitp)) >= asize && !GET_ALLOC(HDRP(next_fitp)))
         {
-            // printf(" FIND IT !!!!!! : %p\n", strt);
-            next_fitp = strt;
-            return strt;
-        }
-
-        strt = NEXT_BLKP(strt);
-        // printf("Coming NEXT, NOW : %p\n", strt);
-
-        // 끝으로 왔으면?
-        if (GET_SIZE(HDRP(strt)) == 0)
-        {
-            // printf("going heap_listp, NOW L %p\n", strt);
-            // 처음으로 돌려놓는다.
-            strt = heap_listp;
+            return next_fitp;
         }
     }
 
-    printf("I CANT FIND IT\n NOW : %p, next_fitp : %p", strt);
+    for (next_fitp = heap_listp; next_fitp < strt; next_fitp = NEXT_BLKP(next_fitp))
+    {
+        if (GET_SIZE(HDRP(next_fitp)) >= asize && !GET_ALLOC(HDRP(next_fitp)))
+        {
+            return next_fitp;
+        }
+    }
+    // printf("I CAN't FIND IT \n");
     return NULL;
 }
 
