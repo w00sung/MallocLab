@@ -197,8 +197,7 @@ static void *find_fit(size_t asize)
 }
 
 // find_fit 된 bp에 asize 할당 시키기 == size update
-// flag == 1 : 1WORD align, flag == 2 : 2WORD align
-static void place(void *bp, size_t asize, int flag)
+static void place(void *bp, size_t asize)
 {
     size_t old_size;
     size_t diff;
@@ -213,9 +212,7 @@ static void place(void *bp, size_t asize, int flag)
     // realloc 추가의 경우 (이미 검증하고 왔음)
 
     // 최소 사이즈 보다 적게 남으면 잘 넣은 거임 그대로 유지
-    // flag == 2 : 데이터가 최소 1개이상 들어가는 상황
-    // flag == 1 : realloc 되는 상황
-    if (diff < flag * DSIZE)
+    if (diff < 2 * DSIZE)
     {
         PUT(HDRP(bp), PACK(old_size, 1));
         PUT(FTRP(bp), PACK(old_size, 1));
@@ -223,7 +220,7 @@ static void place(void *bp, size_t asize, int flag)
 
     // 최소 사이즈 보다 크거나 같게 남으면, 분리해줘야함
     // 남은 부분 Header & Footer에 명시하기
-    else if (diff >= flag * DSIZE)
+    else if (diff >= 2 * DSIZE)
     {
         PUT(HDRP(bp), PACK(asize, 1));
         PUT(FTRP(bp), PACK(asize, 1));
@@ -232,7 +229,6 @@ static void place(void *bp, size_t asize, int flag)
     }
 }
 
-// 8의 배수로 만들어주기
 static size_t makeSize(size_t size)
 {
     size_t asize; /* 적용될 size */
@@ -263,7 +259,7 @@ void *mm_malloc(size_t size)
     /* 적절한 fit 장소를 찾았다! */
     if ((bp = find_fit(asize)) != NULL)
     {
-        place(bp, asize, 2);
+        place(bp, asize);
         return bp;
     }
 
@@ -278,7 +274,7 @@ void *mm_malloc(size_t size)
     if ((bp = extend_heap(extendsize / WSIZE)) == NULL)
         return NULL;
 
-    place(bp, asize, 2);
+    place(bp, asize);
     return bp;
 }
 
@@ -306,50 +302,22 @@ void *mm_realloc(void *ptr, size_t size)
     void *oldptr = ptr;
     void *newptr;
     size_t copySize;
-    size_t make_size;
+    size_t newSize;
 
     copySize = (size_t)(GET_SIZE(HDRP(oldptr)));
+    newSize = makeSize(size);
 
-    // 8의 배수로 만들기 -- 8/0 free 도 생긴다.
-    make_size = makeSize(size);
-
-    // 0 realloc
-    if (size == 0)
+    if (oldptr == NULL)
         return NULL;
 
-    // 작은 사이즈 realloc
-    else if (make_size < copySize)
-    {
-        place(oldptr, make_size, 1);
+    if (newSize == copySize)
         return oldptr;
-    }
-
-    // 같은 사이즈 realloc
-    else if (make_size == copySize)
-        return oldptr;
-
-    // 뒤에 영역 사용 가능하고, 뒤에 헤더 푸터 다 넣고도 여유 공간이 있을 때
-    else if (!(GET_ALLOC(HDRP(NEXT_BLKP(oldptr)))) &&
-             GET_SIZE(HDRP(NEXT_BLKP(oldptr))) - DSIZE >= make_size - copySize)
-    {
-        // 추가 해줘야하는 양
-        // 뒤에는 8/0 이 될 수도 있다. 이때 flag 1이 유용하다.
-        place(oldptr, make_size, 1);
-        return oldptr;
-    }
-
-    copySize = copySize - DSIZE;
 
     newptr = mm_malloc(size);
-    if (newptr == NULL)
-        return NULL;
 
-    // copySize = *(size_t *)((char *)oldptr - SIZE_T_SIZE);
-
-    // // cut
-    // if (size < copySize)
-    //     copySize = size;
-
+    // cut
+    if (newSize < copySize)
+        copySize = size;
     // newPtr에
     memcpy(newptr, oldptr, copySize);
     mm_free(oldptr);
