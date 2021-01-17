@@ -142,9 +142,64 @@ void *mm_malloc(size_t size)
  */
 void mm_free(void *bp)
 {
+    /* 해당 block의 size를 얻어온다. */
+    size_t size = GET_SIZE(HDRP(bp));
 
+    /* Header와 Footer에 할당상태 0으로 변경 */
+    PUT(HDRP(bp), PACK(size, 0));
+    PUT(FTRP(bp), PACK(size, 0));
+
+    /* immediately 합치기 */
+    coalesce(bp);
 }
 
+static void *coalesce(void *bp)
+{
+    size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
+    size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
+    size_t size = GET_SIZE(HDRP(bp));
+
+    /* 모두 할당되어 있는 경우 */
+    if (prev_alloc && next_alloc)
+        return bp;
+
+    /* prev block만 free인 경우 */
+    else if (!prev_alloc && next_alloc)
+    {
+        // prev block의 size를 얻어온다. (from its Footer)
+        size += GET_SIZE(HDRP(PREV_BLKP(bp)));
+        PUT(FTRP(bp), PACK(size, 0));
+        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+        bp = PREV_BLKP(bp); // bp는 free 된 총 block의 pointer로 유지
+    }
+
+    /* next block만 free인 경우 */
+    else if (prev_alloc && !next_alloc)
+    {
+        // next block의 size를 얻어온다. (from its Header)
+        size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
+        PUT(HDRP(bp), PACK(size, 0));
+
+        // FTRP는 Header에 입력된 size를 GET_SIZE하여 확인한다.
+        // 따라서, Header에 size를 update해줬으면, Footer가 자동으로 변경된다.
+        PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
+
+        // bp는 그대로 둔다. why? free된 block의 시작은 그대로다.
+    }
+
+    /* 모두 free인 경우 */
+    else
+    {
+        size += (GET_SIZE(HDRP(PREV_BLKP(bp))) +
+                 GET_SIZE(FTRP(NEXT_BLKP(bp))));
+        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+        PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
+        bp = PREV_BLKP(bp);
+    }
+
+    // 합병 후, free 된 총 block의 최초 ptr을 return한다
+    return bp;
+}
 
 /*
  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
