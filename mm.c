@@ -69,7 +69,7 @@ team_t team = {
 #define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE(((char *)(bp)-DSIZE)))   // Prev Block ptr : payload ptr - prev block size (get from prev Footer)
 
 static char *heap_listp;
-
+static char *next_fitp;
 static void *coalesce(void *bp)
 {
     size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
@@ -113,6 +113,12 @@ static void *coalesce(void *bp)
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
         bp = PREV_BLKP(bp);
     }
+
+    // 합병 시켰을 때, next_fitp의 행방이 묻히지 않게하자.
+
+    // 묻혔다면? -- bp 뒤에 있고, 다음 block 안에 있다.
+    if ((next_fitp > (char *)bp) && (next_fitp < (char *)NEXT_BLKP(bp)))
+        next_fitp = bp; //bp는 free 되어있음
 
     // 합병 후, free 된 총 block의 최초 ptr을 return한다
     return bp;
@@ -158,6 +164,7 @@ int mm_init(void)
     if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1)
         return -1;
 
+    // 초기화 할 때, next_fit 시작점 연결
     PUT(heap_listp, 0); /* 첫 WORD에 0을 넣는다. */
     /*  Prologue Header & Footer */
     PUT(heap_listp + (1 * WSIZE), PACK(DSIZE, 1));
@@ -168,6 +175,7 @@ int mm_init(void)
 
     /* 초기화 후, 다음 부터 들어올 화살표 옮겨주기 ! */
     heap_listp += (2 * WSIZE);
+    next_fitp = heap_listp;
 
     // CHUNKSIZE만큼 힙 초기 생성하기
     if (extend_heap(CHUNKSIZE / WSIZE) == NULL)
@@ -184,15 +192,48 @@ int mm_init(void)
 static void *find_fit(size_t asize)
 {
     char *strt = heap_listp;
-
     // Size가 0이면 while 문 멈춘다.
     while (GET_SIZE(HDRP(strt)))
     {
         strt = NEXT_BLKP(strt);
         if (GET_SIZE(HDRP(strt)) >= asize && !GET_ALLOC(HDRP(strt)))
+        {
             return strt;
+        }
+    }
+    // printf("I Can't FIND IT");
+    return NULL;
+}
+
+static void *find_next_fit(size_t asize)
+{
+    // printf("LETS FIND OUT !\n");
+    char *strt = next_fitp;
+
+    // 나를 만나기 직전까지 달린다.
+    while (NEXT_BLKP(strt) != next_fitp)
+    {
+        // strt도 검정하고 넘어간다.
+        if (!GET_ALLOC(HDRP(strt)) && GET_SIZE(HDRP(strt)) >= asize)
+        {
+            // printf(" FIND IT !!!!!! : %p\n", strt);
+            next_fitp = strt;
+            return strt;
+        }
+
+        strt = NEXT_BLKP(strt);
+        // printf("Coming NEXT, NOW : %p\n", strt);
+
+        // 끝으로 왔으면?
+        if (GET_SIZE(HDRP(strt)) == 0)
+        {
+            // printf("going heap_listp, NOW L %p\n", strt);
+            // 처음으로 돌려놓는다.
+            strt = heap_listp;
+        }
     }
 
+    printf("I CANT FIND IT\n NOW : %p, next_fitp : %p", strt);
     return NULL;
 }
 
@@ -203,11 +244,7 @@ static void place(void *bp, size_t asize)
     size_t diff;
     old_size = GET_SIZE(HDRP(bp));
 
-    // realloc의 경우
-    if (old_size < asize)
-        diff = asize - old_size;
-    else
-        diff = old_size - asize;
+    diff = old_size - asize;
 
     // realloc 추가의 경우 (이미 검증하고 왔음)
 
@@ -257,9 +294,11 @@ void *mm_malloc(size_t size)
     asize = makeSize(size);
 
     /* 적절한 fit 장소를 찾았다! */
-    if ((bp = find_fit(asize)) != NULL)
+    if ((bp = find_next_fit(asize)) != NULL)
     {
         place(bp, asize);
+        // 할당 후, 다음 block으로 밀어준다.
+        // next_fitp = NEXT_BLKP(bp);
         return bp;
     }
 
