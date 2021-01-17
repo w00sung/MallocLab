@@ -174,29 +174,41 @@ void *mm_malloc(size_t size)
 static void *find_fit(size_t asize)
 {
     char *strt = heap_listp;
-    while ((GET_SIZE(HDRP(strt)) < asize) && (GET_ALLOC(HDRP(strt)) != 0))
-        // 찾을 때까지 다음 block으로 넘어가기
-        strt = NEXT_BLKP(strt);
 
-    // void형태로 변환시켜서 return 시킴
-    return strt;
+    // Size가 0이면 while 문 멈춘다.
+    while (GET_SIZE(HDRP(strt)))
+    {
+        strt = NEXT_BLKP(strt);
+        if (GET_SIZE(HDRP(strt)) >= asize && !GET_ALLOC(HDRP(strt)))
+            return strt;
+    }
+
+    return NULL;
 }
 
 // find_fit 된 bp에 asize 할당 시키기
 static void place(void *bp, size_t asize)
 {
     size_t old_size;
+    siez_t diff;
     old_size = GET_SIZE(HDRP(bp));
+    diff = old_size - asize;
 
-    PUT(HDRP(bp), PACK(asize, 1));
-    PUT(FTRP(bp), PACK(asize, 1));
-
-    // DSIZE 보다 작으면, 1칸 남았고, 잘 넣은거임
-    // 남은 부분 Header & Footer에 명시하기
-    if ((old_size - asize) >= DSIZE)
+    // 최소 사이즈 보다 적게 남으면 잘 넣은 거임 그대로 유지
+    if (diff < 2 * DSIZE)
     {
-        PUT(HDRP(NEXT_BLKP(bp)), PACK(old_size - asize, 0))
-        PUT(FTRP(NEXT_BLKP(bp)), PACK(old_size, 0));
+        PUT(HDRP(bp), PACK(old_size, 1));
+        PUT(FTRP(bp), PACK(old_size, 1));
+    }
+
+    // 최소 사이즈 보다 크거나 같게 남으면, 분리해줘야함
+    // 남은 부분 Header & Footer에 명시하기
+    else if (diff >= 2 * DSIZE)
+    {
+        PUT(HDRP(bp), PACK(asize, 1));
+        PUT(FTRP(bp), PACK(asize, 1));
+        PUT(HDRP(NEXT_BLKP(bp)), PACK(diff, 0))
+        PUT(FTRP(NEXT_BLKP(bp)), PACK(diff, 0));
     }
 }
 
