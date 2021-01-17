@@ -301,6 +301,7 @@ void *mm_realloc(void *ptr, size_t size)
 {
     void *oldptr = ptr;
     void *newptr;
+
     size_t copySize;
     size_t newSize;
 
@@ -313,6 +314,24 @@ void *mm_realloc(void *ptr, size_t size)
     if (newSize == copySize)
         return oldptr;
 
+    if (newSize > copySize)
+    {
+        void *nxtblock;
+        size_t nxtSize;
+        // 현재 다음 block
+        nxtblock = NEXT_BLKP(ptr);
+        nxtSize = GET_SIZE(HDRP(nxtblock));
+        if ((nxtSize - DSIZE) >= (newSize - copySize) &&
+            !(GET_ALLOC(HDRP(nxtblock))))
+        {
+            PUT(HDRP(ptr), PACK(newSize, 1));
+            PUT(FTRP(ptr), PACK(newSize, 1));
+            // 새로워진 다음 block
+            PUT(HDRP(NEXT_BLKP(ptr)), PACK(nxtSize - (newSize - copySize), 0));
+            PUT(FTRP(NEXT_BLKP(ptr)), PACK(nxtSize - (newSize - copySize), 0));
+            return oldptr;
+        }
+    }
     newptr = mm_malloc(size);
 
     // cut
