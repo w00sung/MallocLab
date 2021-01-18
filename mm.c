@@ -205,26 +205,53 @@ static void *find_fit(size_t asize)
     return NULL;
 }
 
+/* Next Fit */
 // while 문으로 고쳐보자!
 static void *find_next_fit(size_t asize)
 {
     char *strt = next_fitp;
 
-    for (; GET_SIZE(HDRP(next_fitp)) > 0; next_fitp = NEXT_BLKP(next_fitp))
+    // for (; GET_SIZE(HDRP(next_fitp)) > 0; next_fitp = NEXT_BLKP(next_fitp))
+    // {
+    //     if (GET_SIZE(HDRP(next_fitp)) >= asize && !GET_ALLOC(HDRP(next_fitp)))
+    //     {
+    //         return next_fitp;
+    //     }
+    // }
+
+    // for (next_fitp = heap_listp; next_fitp < strt; next_fitp = NEXT_BLKP(next_fitp))
+    // {
+    //     if (GET_SIZE(HDRP(next_fitp)) >= asize && !GET_ALLOC(HDRP(next_fitp)))
+    //     {
+    //         return next_fitp;
+    //     }
+    // }
+
+    // ptr이 계속 끝을 가리키면?!
+    int flag = 0;
+    // 이전 검색한 곳부터 진행
+    while (1)
     {
-        if (GET_SIZE(HDRP(next_fitp)) >= asize && !GET_ALLOC(HDRP(next_fitp)))
+        // 끝에 도달하면 처음으로 돌려준다.
+        if (GET_SIZE(HDRP(next_fitp)) == 0)
         {
-            return next_fitp;
+            // 다시 돌아오면 끝낸다.
+            // -> 마지막 탐색지가 epilogue였으면 계속 이곳으로 들어옴
+            if (flag)
+                break;
+            flag = 1;
+            next_fitp = heap_listp;
         }
+        // free 이면서, 내가 들어갈 수 있는 block만나면
+        if (!GET_ALLOC(HDRP(next_fitp)) && GET_SIZE(HDRP(next_fitp)) >= asize)
+            return next_fitp;
+
+        next_fitp = NEXT_BLKP(next_fitp);
+
+        if (next_fitp == strt)
+            break;
     }
 
-    for (next_fitp = heap_listp; next_fitp < strt; next_fitp = NEXT_BLKP(next_fitp))
-    {
-        if (GET_SIZE(HDRP(next_fitp)) >= asize && !GET_ALLOC(HDRP(next_fitp)))
-        {
-            return next_fitp;
-        }
-    }
     // printf("I CAN't FIND IT \n");
     return NULL;
 }
