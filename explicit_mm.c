@@ -87,8 +87,10 @@ static void *coalesce(void *bp)
 
     /* 모두 할당되어 있는 경우 */
     if (prev_alloc && next_alloc)
-        return bp;
+    {
 
+        return bp;
+    }
     /* prev block만 free인 경우 */
     else if (!prev_alloc && next_alloc)
     {
@@ -292,6 +294,12 @@ static void place(void *bp, size_t asize)
     // 최소 사이즈 보다 적게 남으면 잘 넣은 거임 그대로 유지
     if (diff < 2 * DSIZE)
     {
+        /* 지들끼리 연결 만들기 */
+        // 나를 SUCC으로 갖고 있던 녀석의 SUCC를 바꾼다.
+        PUT(SUCC_LOC(PRED(bp)), SUCC(bp));
+        // 나를 PRED로 갖고 있던 녀석의 PRED를 바꾼다.
+        PUT(PRED_LOC(SUCC(bp)), PRED(bp));
+
         PUT(HDRP(bp), PACK(old_size, 1));
         PUT(FTRP(bp), PACK(old_size, 1));
     }
@@ -302,8 +310,14 @@ static void place(void *bp, size_t asize)
     {
         PUT(HDRP(bp), PACK(asize, 1));
         PUT(FTRP(bp), PACK(asize, 1));
-        PUT(HDRP(NEXT_BLKP(bp)), PACK(diff, 0));
-        PUT(FTRP(NEXT_BLKP(bp)), PACK(diff, 0));
+
+        // PRED & SUCC 이식
+        PUT(SUCC_LOC(NEXT_BLKP(bp)), SUCC(bp));
+        PUT(PRED_LOC(NEXT_BLKP(bp)), PRED(bp));
+
+        bp = NEXT_BLKP(bp);
+        PUT(HDRP(bp), PACK(diff, 0));
+        PUT(FTRP(bp), PACK(diff, 0));
     }
 }
 
@@ -401,6 +415,7 @@ void *mm_realloc(void *ptr, size_t size)
         // 현재 다음 block
         nxtblock = NEXT_BLKP(ptr);
         nxtSize = GET_SIZE(HDRP(nxtblock));
+        // 여기 조심해야 됨!!! 2*DSIZE로 업그레이드 해주기
         if ((nxtSize - DSIZE) >= (newSize - copySize) &&
             !(GET_ALLOC(HDRP(nxtblock))))
         {
