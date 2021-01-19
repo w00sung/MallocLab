@@ -269,10 +269,10 @@ int mm_init(void)
 static void *find_fit(size_t asize)
 {
     char *strt = heap_listp;
-    // Size가 0이면 while 문 멈춘다.
-    while (GET_SIZE(HDRP(strt)))
+    // NULL을 만나면 while 문 멈춘다.
+    while (strt != NULL)
     {
-        strt = NEXT_BLKP(strt);
+        strt = (char *)SUCC(strt);
         if (GET_SIZE(HDRP(strt)) >= asize && !GET_ALLOC(HDRP(strt)))
         {
             return strt;
@@ -402,7 +402,7 @@ void *mm_malloc(size_t size)
     asize = makeSize(size);
 
     /* 적절한 fit 장소를 찾았다! */
-    if ((bp = find_next_fit(asize)) != NULL)
+    if ((bp = find_fit(asize)) != NULL)
     {
         place(bp, asize);
         // 할당 후, 다음 block으로 밀어준다.
