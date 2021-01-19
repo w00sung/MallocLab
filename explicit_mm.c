@@ -68,16 +68,19 @@ team_t team = {
 #define PRED_LOC(bp) (char *)HDRP(bp) + WSIZE
 #define SUCC_LOC(bp) (char *)HDRP(bp) + DSIZE
 
+#define PUT_ADDRESS(p, adress) (*(char **)(p) = (char *)(adress))
+
 /* PRED & SUCC : 해당 WORD에 저장된 값 불러오기 */
-#define PRED(bp) *(char *)PRED_LOC(bp)
-#define SUCC(bp) *(char *)SUCC_LOC(bp)
+
+// PRED_LOC & SUCC_LOC 주소는 포인터를 저장하고 있는 곳의 주소이다.
+#define PRED(bp) *(char **)PRED_LOC(bp)
+#define SUCC(bp) *(char **)SUCC_LOC(bp)
 
 /* 블락 포인터 bp에 대해서, 다음 block 과 이전 block 얻어오기 */
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp)-WSIZE))) // Next Block ptr : payload ptr + block Size (get from my Header)
 #define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE(((char *)(bp)-DSIZE)))   // Prev Block ptr : payload ptr - prev block size (get from prev Footer)
 
 static char *heap_listp;
-static char *next_fitp;
 
 static void *coalesce(void *bp)
 {
@@ -93,11 +96,11 @@ static void *coalesce(void *bp)
         /* PUT PREV & SUCC on myself */
         /* "루트 -> 나 -> 루트's" 이전 SUCC 연결 시켜주기 */
 
-        PUT(PRED_LOC(bp), heap_listp);
-        PUT(SUCC_LOC(bp), SUCC(heap_listp));
+        PUT_ADDRESS(PRED_LOC(bp), heap_listp);
+        PUT_ADDRESS(SUCC_LOC(bp), SUCC(heap_listp));
 
-        PUT(PRED_LOC(SUCC(bp)), bp);
-        PUT(SUCC_LOC(heap_listp), bp);
+        PUT_ADDRESS(PRED_LOC(SUCC(bp)), bp);
+        PUT_ADDRESS(SUCC_LOC(heap_listp), bp);
 
         return bp;
     }
@@ -113,15 +116,15 @@ static void *coalesce(void *bp)
         bp = PREV_BLKP(bp); // bp는 free 된 총 block의 pointer로 유지
 
         /* 이전에 나의 전, 후 녀석들끼리 연결 시키기*/
-        PUT(PRED_LOC(SUCC(bp)), PRED(bp));
-        PUT(SUCC_LOC(PRED(bp)), SUCC(bp));
+        PUT_ADDRESS(PRED_LOC(SUCC(bp)), PRED(bp));
+        PUT_ADDRESS(SUCC_LOC(PRED(bp)), SUCC(bp));
 
         /* "루트 -> 나 -> 루트's" 이전 SUCC 연결 시켜주기 */
-        PUT(PRED_LOC(bp), heap_listp);
-        PUT(SUCC_LOC(bp), SUCC(heap_listp));
+        PUT_ADDRESS(PRED_LOC(bp), heap_listp);
+        PUT_ADDRESS(SUCC_LOC(bp), SUCC(heap_listp));
 
-        PUT(PRED_LOC(SUCC(bp)), bp);
-        PUT(SUCC_LOC(heap_listp), bp);
+        PUT_ADDRESS(PRED_LOC(SUCC(bp)), bp);
+        PUT_ADDRESS(SUCC_LOC(heap_listp), bp);
     }
 
     /* next block만 free인 경우 */
@@ -131,15 +134,15 @@ static void *coalesce(void *bp)
         // next block의 size를 얻어온다. (from its Header)
 
         /* "루트 -> 나 -> 루트's" 이전 SUCC 연결 시켜주기 */
-        PUT(PRED_LOC(bp), heap_listp);
-        PUT(SUCC_LOC(bp), SUCC(heap_listp));
+        PUT_ADDRESS(PRED_LOC(bp), heap_listp);
+        PUT_ADDRESS(SUCC_LOC(bp), SUCC(heap_listp));
 
-        PUT(PRED_LOC(SUCC(bp)), bp);
-        PUT(SUCC_LOC(heap_listp), bp);
+        PUT_ADDRESS(PRED_LOC(SUCC(bp)), bp);
+        PUT_ADDRESS(SUCC_LOC(heap_listp), bp);
 
         /* 합치기 전에, 뒤에 block에 연결된 전, 후끼리 연결 시키기 */
-        PUT(PRED_LOC(SUCC(nxt_blkp)), PRED(nxt_blkp));
-        PUT(SUCC_LOC(PRED(nxt_blkp)), SUCC(nxt_blkp));
+        PUT_ADDRESS(PRED_LOC(SUCC(nxt_blkp)), PRED(nxt_blkp));
+        PUT_ADDRESS(SUCC_LOC(PRED(nxt_blkp)), SUCC(nxt_blkp));
 
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
         PUT(HDRP(bp), PACK(size, 0));
@@ -163,19 +166,19 @@ static void *coalesce(void *bp)
         bp = PREV_BLKP(bp);
 
         /* 이전에 앞 녀석들의 전, 후 녀석들끼리 연결 시키기*/
-        PUT(PRED_LOC(SUCC(bp)), PRED(bp));
-        PUT(SUCC_LOC(PRED(bp)), SUCC(bp));
+        PUT_ADDRESS(PRED_LOC(SUCC(bp)), PRED(bp));
+        PUT_ADDRESS(SUCC_LOC(PRED(bp)), SUCC(bp));
 
         /* 이전에 뒷 녀석들의 전, 후 녀석들끼리 연결 시키기*/
-        PUT(PRED_LOC(SUCC(old_next)), PRED(old_next));
-        PUT(SUCC_LOC(PRED(old_next)), SUCC(old_next));
+        PUT_ADDRESS(PRED_LOC(SUCC(old_next)), PRED(old_next));
+        PUT_ADDRESS(SUCC_LOC(PRED(old_next)), SUCC(old_next));
 
         /* "루트 -> 나 -> 루트's" 이전 SUCC 연결 시켜주기 */
-        PUT(PRED_LOC(bp), heap_listp);
-        PUT(SUCC_LOC(bp), SUCC(heap_listp));
+        PUT_ADDRESS(PRED_LOC(bp), heap_listp);
+        PUT_ADDRESS(SUCC_LOC(bp), SUCC(heap_listp));
 
-        PUT(PRED_LOC(SUCC(bp)), bp);
-        PUT(SUCC_LOC(heap_listp), bp);
+        PUT_ADDRESS(PRED_LOC(SUCC(bp)), bp);
+        PUT_ADDRESS(SUCC_LOC(heap_listp), bp);
     }
 
     // 합병 시켰을 때, next_fitp의 행방이 묻히지 않게하자.
@@ -210,12 +213,12 @@ static void *extend_heap(size_t words)
     PUT(FTRP(bp), PACK(size, 0));
 
     /* 새로 들어온 free block의 PRED 와 SUCC 넣어주기 */
-    PUT(PRED_LOC(bp), heap_listp);       // PRED : root
-    PUT(SUCC_LOC(bp), SUCC(heap_listp)); // SUCC : root's SUCC
-    PUT(PRED_LOC(SUCC(bp)), bp);         // 다음 녀석(pred가 root 였을 거임)에 나 넣어주기
+    PUT_ADDRESS(PRED_LOC(bp), heap_listp);       // PRED : root
+    PUT_ADDRESS(SUCC_LOC(bp), SUCC(heap_listp)); // SUCC : root's SUCC
+    PUT_ADDRESS(PRED_LOC(SUCC(bp)), bp);         // 다음 녀석(pred가 root 였을 거임)에 나 넣어주기
 
     /* 다음 block을 Epilogue block으로 만들어주기 */
-    PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1));
+    PUT_ADDRESS(HDRP(NEXT_BLKP(bp)), PACK(0, 1));
 
     /* 연장시키기 전 마지막 block이 free였으면? */
     return coalesce(bp);
@@ -242,8 +245,8 @@ int mm_init(void)
     PUT(heap_listp + (4 * WSIZE), PACK(2 * DSIZE, 1));
 
     /* Prologue PRED & SUCC 초기화 */ // (Q) -- NULL을 넣을 수 있을까?
-    PUT(heap_listp + (2 * WSIZE), NULL);
-    PUT(heap_listp + (3 * WSIZE), NULL);
+    PUT_ADDRESS(heap_listp + (2 * WSIZE), NULL);
+    PUT_ADDRESS(heap_listp + (3 * WSIZE), NULL);
 
     /* Epilogue Header */
     PUT(heap_listp + (5 * WSIZE), PACK(0, 1));
@@ -257,7 +260,7 @@ int mm_init(void)
         return -1;
 
     // 새로 들어와서 확장된 녀석을 root (== heap_listp)의 SUCC으로 바꿔준다.
-    PUT(SUCC_LOC(heap_listp), NEXT_BLKP(heap_listp));
+    PUT_ADDRESS(SUCC_LOC(heap_listp), NEXT_BLKP(heap_listp));
     return 0;
 }
 
@@ -272,7 +275,7 @@ static void *find_fit(size_t asize)
     // NULL을 만나면 while 문 멈춘다.
     while (strt != NULL)
     {
-        strt = (char *)SUCC(strt);
+        strt = SUCC(strt);
         if (GET_SIZE(HDRP(strt)) >= asize && !GET_ALLOC(HDRP(strt)))
         {
             return strt;
@@ -284,54 +287,54 @@ static void *find_fit(size_t asize)
 
 /* Next Fit */
 // while 문으로 고쳐보자!
-static void *find_next_fit(size_t asize)
-{
-    char *strt = next_fitp;
+// static void *find_next_fit(size_t asize)
+// {
+//     char *strt = next_fitp;
 
-    // for (; GET_SIZE(HDRP(next_fitp)) > 0; next_fitp = NEXT_BLKP(next_fitp))
-    // {
-    //     if (GET_SIZE(HDRP(next_fitp)) >= asize && !GET_ALLOC(HDRP(next_fitp)))
-    //     {
-    //         return next_fitp;
-    //     }
-    // }
+//     // for (; GET_SIZE(HDRP(next_fitp)) > 0; next_fitp = NEXT_BLKP(next_fitp))
+//     // {
+//     //     if (GET_SIZE(HDRP(next_fitp)) >= asize && !GET_ALLOC(HDRP(next_fitp)))
+//     //     {
+//     //         return next_fitp;
+//     //     }
+//     // }
 
-    // for (next_fitp = heap_listp; next_fitp < strt; next_fitp = NEXT_BLKP(next_fitp))
-    // {
-    //     if (GET_SIZE(HDRP(next_fitp)) >= asize && !GET_ALLOC(HDRP(next_fitp)))
-    //     {
-    //         return next_fitp;
-    //     }
-    // }
+//     // for (next_fitp = heap_listp; next_fitp < strt; next_fitp = NEXT_BLKP(next_fitp))
+//     // {
+//     //     if (GET_SIZE(HDRP(next_fitp)) >= asize && !GET_ALLOC(HDRP(next_fitp)))
+//     //     {
+//     //         return next_fitp;
+//     //     }
+//     // }
 
-    // ptr이 계속 끝을 가리키면?!
-    int flag = 0;
-    // 이전 검색한 곳부터 진행
-    while (1)
-    {
-        // 끝에 도달하면 처음으로 돌려준다.
-        if (GET_SIZE(HDRP(next_fitp)) == 0)
-        {
-            // 다시 돌아오면 끝낸다.
-            // -> 마지막 탐색지가 epilogue였으면 계속 이곳으로 들어옴
-            if (flag)
-                break;
-            flag = 1;
-            next_fitp = heap_listp;
-        }
-        // free 이면서, 내가 들어갈 수 있는 block만나면
-        if (!GET_ALLOC(HDRP(next_fitp)) && GET_SIZE(HDRP(next_fitp)) >= asize)
-            return next_fitp;
+//     // ptr이 계속 끝을 가리키면?!
+//     int flag = 0;
+//     // 이전 검색한 곳부터 진행
+//     while (1)
+//     {
+//         // 끝에 도달하면 처음으로 돌려준다.
+//         if (GET_SIZE(HDRP(next_fitp)) == 0)
+//         {
+//             // 다시 돌아오면 끝낸다.
+//             // -> 마지막 탐색지가 epilogue였으면 계속 이곳으로 들어옴
+//             if (flag)
+//                 break;
+//             flag = 1;
+//             next_fitp = heap_listp;
+//         }
+//         // free 이면서, 내가 들어갈 수 있는 block만나면
+//         if (!GET_ALLOC(HDRP(next_fitp)) && GET_SIZE(HDRP(next_fitp)) >= asize)
+//             return next_fitp;
 
-        next_fitp = NEXT_BLKP(next_fitp);
+//         next_fitp = NEXT_BLKP(next_fitp);
 
-        if (next_fitp == strt)
-            break;
-    }
+//         if (next_fitp == strt)
+//             break;
+//     }
 
-    // printf("I CAN't FIND IT \n");
-    return NULL;
-}
+//     // printf("I CAN't FIND IT \n");
+//     return NULL;
+// }
 
 // find_fit 된 bp에 asize 할당 시키기 == size update
 static void place(void *bp, size_t asize)
@@ -349,9 +352,9 @@ static void place(void *bp, size_t asize)
     {
         /* 지들끼리 연결 만들기 */
         // 나를 SUCC으로 갖고 있던 녀석의 SUCC를 바꾼다.
-        PUT(SUCC_LOC(PRED(bp)), SUCC(bp));
+        PUT_ADDRESS(SUCC_LOC(PRED(bp)), SUCC(bp));
         // 나를 PRED로 갖고 있던 녀석의 PRED를 바꾼다.
-        PUT(PRED_LOC(SUCC(bp)), PRED(bp));
+        PUT_ADDRESS(PRED_LOC(SUCC(bp)), PRED(bp));
 
         PUT(HDRP(bp), PACK(old_size, 1));
         PUT(FTRP(bp), PACK(old_size, 1));
@@ -365,8 +368,8 @@ static void place(void *bp, size_t asize)
         PUT(FTRP(bp), PACK(asize, 1));
 
         // PRED & SUCC 이식
-        PUT(SUCC_LOC(NEXT_BLKP(bp)), SUCC(bp));
-        PUT(PRED_LOC(NEXT_BLKP(bp)), PRED(bp));
+        PUT_ADDRESS(SUCC_LOC(NEXT_BLKP(bp)), SUCC(bp));
+        PUT_ADDRESS(PRED_LOC(NEXT_BLKP(bp)), PRED(bp));
 
         bp = NEXT_BLKP(bp);
         PUT(HDRP(bp), PACK(diff, 0));
