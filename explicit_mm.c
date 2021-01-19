@@ -81,13 +81,23 @@ static char *next_fitp;
 
 static void *coalesce(void *bp)
 {
+
     size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
     size_t size = GET_SIZE(HDRP(bp));
 
-    /* 모두 할당되어 있는 경우 */
+    /* FREE 시에 already (사이즈, 0) 작업 in Header & Footer */
+    /* 모두 할당되어 있는 경우 : 나만 FREE */
     if (prev_alloc && next_alloc)
     {
+        /* PUT PREV & SUCC on myself */
+        /* "루트 -> 나 -> 루트's" 이전 SUCC 연결 시켜주기 */
+
+        PUT(PRED_LOC(bp), heap_listp);
+        PUT(SUCC_LOC(bp), SUCC(heap_listp));
+
+        PUT(PRED_LOC(SUCC(bp)), bp);
+        PUT(SUCC_LOC(heap_listp), bp);
 
         return bp;
     }
@@ -96,18 +106,43 @@ static void *coalesce(void *bp)
     {
         // prev block의 size를 얻어온다. (from its Footer)
         size += GET_SIZE(HDRP(PREV_BLKP(bp)));
+
         PUT(FTRP(bp), PACK(size, 0));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+
         bp = PREV_BLKP(bp); // bp는 free 된 총 block의 pointer로 유지
+
+        /* 이전에 나의 전, 후 녀석들끼리 연결 시키기*/
+        PUT(PRED_LOC(SUCC(bp)), PRED(bp));
+        PUT(SUCC_LOC(PRED(bp)), SUCC(bp));
+
+        /* "루트 -> 나 -> 루트's" 이전 SUCC 연결 시켜주기 */
+        PUT(PRED_LOC(bp), heap_listp);
+        PUT(SUCC_LOC(bp), SUCC(heap_listp));
+
+        PUT(PRED_LOC(SUCC(bp)), bp);
+        PUT(SUCC_LOC(heap_listp), bp);
     }
 
     /* next block만 free인 경우 */
     else if (prev_alloc && !next_alloc)
     {
+        char *nxt_blkp = NEXT_BLKP(bp);
         // next block의 size를 얻어온다. (from its Header)
+
+        /* "루트 -> 나 -> 루트's" 이전 SUCC 연결 시켜주기 */
+        PUT(PRED_LOC(bp), heap_listp);
+        PUT(SUCC_LOC(bp), SUCC(heap_listp));
+
+        PUT(PRED_LOC(SUCC(bp)), bp);
+        PUT(SUCC_LOC(heap_listp), bp);
+
+        /* 합치기 전에, 뒤에 block에 연결된 전, 후끼리 연결 시키기 */
+        PUT(PRED_LOC(SUCC(nxt_blkp)), PRED(nxt_blkp));
+        PUT(SUCC_LOC(PRED(nxt_blkp)), SUCC(nxt_blkp));
+
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
         PUT(HDRP(bp), PACK(size, 0));
-
         // FTRP는 Header에 입력된 size를 GET_SIZE하여 확인한다.
         // 따라서, Header에 size를 update해줬으면, Footer가 자동으로 변경된다.
         PUT(FTRP(bp), PACK(size, 0));
@@ -118,18 +153,36 @@ static void *coalesce(void *bp)
     /* 모두 free인 경우 */
     else
     {
+        char *old_next = NEXT_BLKP(bp);
+
         size += (GET_SIZE(HDRP(PREV_BLKP(bp))) +
                  GET_SIZE(FTRP(NEXT_BLKP(bp))));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
+
         bp = PREV_BLKP(bp);
+
+        /* 이전에 앞 녀석들의 전, 후 녀석들끼리 연결 시키기*/
+        PUT(PRED_LOC(SUCC(bp)), PRED(bp));
+        PUT(SUCC_LOC(PRED(bp)), SUCC(bp));
+
+        /* 이전에 뒷 녀석들의 전, 후 녀석들끼리 연결 시키기*/
+        PUT(PRED_LOC(SUCC(old_next)), PRED(old_next));
+        PUT(SUCC_LOC(PRED(old_next)), SUCC(old_next));
+
+        /* "루트 -> 나 -> 루트's" 이전 SUCC 연결 시켜주기 */
+        PUT(PRED_LOC(bp), heap_listp);
+        PUT(SUCC_LOC(bp), SUCC(heap_listp));
+
+        PUT(PRED_LOC(SUCC(bp)), bp);
+        PUT(SUCC_LOC(heap_listp), bp);
     }
 
     // 합병 시켰을 때, next_fitp의 행방이 묻히지 않게하자.
 
-    // 묻혔다면? -- bp 뒤에 있고, 다음 block 안에 있다.
-    if ((next_fitp > (char *)bp) && (next_fitp < (char *)NEXT_BLKP(bp)))
-        next_fitp = bp; //bp는 free 되어있음
+    // // 묻혔다면? -- bp 뒤에 있고, 다음 block 안에 있다.
+    // if ((next_fitp > (char *)bp) && (next_fitp < (char *)NEXT_BLKP(bp)))
+    //     next_fitp = bp; //bp는 free 되어있음
 
     // 합병 후, free 된 총 block의 최초 ptr을 return한다
     return bp;
