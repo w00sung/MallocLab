@@ -463,7 +463,7 @@ void *mm_realloc(void *ptr, size_t size)
         nxtSize = GET_SIZE(HDRP(nxtblock));
         // 여기 조심해야 됨!!! "2*DSIZE"로 업그레이드 해주기
         if (!(GET_ALLOC(HDRP(nxtblock))) &&
-            (nxtSize - 2 * DSIZE) >= (newSize - copySize))
+            ((nxtSize - 2 * DSIZE) >= (newSize - copySize)))
         {
             // printf("나 들어왔어요\n");
             PUT(HDRP(oldptr), PACK(newSize, 1));
@@ -482,6 +482,8 @@ void *mm_realloc(void *ptr, size_t size)
             printf("C- SUCC_LOC((PRED(nxtblock)) : %p, PRED(nxtblock) : %p \n",
                    SUCC_LOC((PRED(nxtblock))), PRED(nxtblock));
             printf("nxtSize : %d, 요구size : %d, 기존size : %d\n", nxtSize, newSize, copySize);
+            printf("nxtblock : %p, heap_listp : %p, PRED(nxtblock) : %p, NEXT_BLKP(oldptr) : %p\n",
+                   nxtblock, heap_listp, PRED(nxtblock), NEXT_BLKP(oldptr));
             PUT_ADDRESS(SUCC_LOC((PRED(nxtblock))), NEXT_BLKP(oldptr));
             if (SUCC(nxtblock) != NULL)
             {
