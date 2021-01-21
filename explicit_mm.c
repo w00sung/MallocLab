@@ -104,10 +104,8 @@ static void connect_root(void *bp)
 
     // 루트-> 나 -> 루트's 이전 다음 을 연결 시키기
     PUT_ADDRESS(PRED_LOC(bp), heap_listp);
-    // printf("heap_listp : %p , PRED(bp) : %p\n", heap_listp, PRED(bp));
 
     PUT_ADDRESS(SUCC_LOC(bp), SUCC(heap_listp));
-    // printf("SUCC(heap_listp) : %p , SUCC(bp) : %p\n", SUCC(heap_listp), SUCC(bp));
 
     if ((void *)SUCC(heap_listp) != NULL)
     {
@@ -118,10 +116,6 @@ static void connect_root(void *bp)
 static void *coalesce(void *bp)
 {
 
-    // printf("PREV_ALLOC : %d\n : ", GET_ALLOC(FTRP(PREV_BLKP(bp))));
-    // printf("NEXT_ALLOC : %d\n : ", GET_ALLOC(HDRP(NEXT_BLKP(bp))));
-    // printf("SIZE : %d\n ", GET_SIZE(HDRP(bp)));
-
     size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
     size_t size = GET_SIZE(HDRP(bp));
@@ -130,7 +124,6 @@ static void *coalesce(void *bp)
     /* 모두 할당되어 있는 경우 : 나만 FREE */
     if (prev_alloc && next_alloc)
     {
-        // printf("A, heap listp's SUCC : %p\n", SUCC(heap_listp));
 
         /* PUT PREV & SUCC on myself */
         /* "루트 -> 나 -> 루트's" 이전 SUCC 연결 시켜주기 */
@@ -141,7 +134,6 @@ static void *coalesce(void *bp)
     /* prev block만 free인 경우 */
     else if (!prev_alloc && next_alloc)
     {
-        // printf("B, heap listp's SUCC : %p\n", SUCC(heap_listp));
 
         // prev block의 size를 얻어온다. (from its Footer)
         size += GET_SIZE(HDRP(PREV_BLKP(bp)));
@@ -164,7 +156,6 @@ static void *coalesce(void *bp)
         char *nxt_blkp = NEXT_BLKP(bp);
         // next block의 size를 얻어온다. (from its Header)
 
-        // printf("C, heap listp's SUCC : %p\n", SUCC(heap_listp));
         /* "루트 -> 나 -> 루트's" 이전 SUCC 연결 시켜주기 */
         connect_root(bp);
 
@@ -226,7 +217,7 @@ static void *extend_heap(size_t words)
     /* 요청이 왔는데 홀수 words ? : single-word ==> 짝수 words (8의 배수) 로 만들어주기! */
     /* 무조건 Epilogue 만들 수 있음 */
     size = (words % 2) ? (words + 1) * WSIZE : words * WSIZE;
-    // printf("mem_sbrk\n");
+
     // bp는 size만큼 늘려주고 난 후의 ptr : 이전 heap의 끝
     if ((long)(bp = mem_sbrk(size)) == -1)
         return NULL;
@@ -234,15 +225,11 @@ static void *extend_heap(size_t words)
     /* free block의 Header와 Footer & epilogue block의 Footer 를 초기화 시킨다. */
 
     /* 새로 들어온 block의 Header와 Footer 초기화 */
-    // printf("PUT Header & Size");
 
     PUT(HDRP(bp), PACK(size, 0));
-    // printf("HEADER-SIZE : %d\n", GET_SIZE(HDRP(bp)));
 
     PUT(FTRP(bp), PACK(size, 0));
-    // printf("FOOTER-SIZE : %d\n", GET_SIZE(FTRP(bp)));
 
-    // printf("PUT ADDRESS");
     /* 새로 들어온 free block의 PRED 와 SUCC 넣어주기 */
 
     // coalesce의 영역으로 넘겨주자!!
@@ -279,9 +266,8 @@ int mm_init(void)
 
     // 순서를 바꾸면 왜 안되죠?? : 이렇게 넣으면 char* 형태로 넣게된다.
     PUT_ADDRESS(heap_listp + (2 * WSIZE), NULL);
-    // printf("NULL : %p , heap_listp + 2WORD : %p PRED : %p\n", NULL, GET(heap_listp + 2 * WSIZE), PRED(heap_listp));
+
     PUT_ADDRESS(heap_listp + (3 * WSIZE), NULL);
-    // printf("NULL : %p , heap_listp + 2WORD : %p SUCC : %p\n", NULL, GET(heap_listp + 3 * WSIZE), PRED(heap_listp));
 
     PUT(heap_listp + (4 * WSIZE), PACK(2 * DSIZE, 1));
 
@@ -289,15 +275,11 @@ int mm_init(void)
     PUT(heap_listp + (5 * WSIZE), PACK(0, 1));
     /* 초기화 후, ROOT를 가리키는 화살표 ! */
     heap_listp += (2 * WSIZE);
-    // next_fitp = heap_listp;
 
     // CHUNKSIZE만큼 힙 초기 생성하기
     if (extend_heap(CHUNKSIZE / WSIZE) == NULL)
         return -1;
 
-    // printf("확장 끝 !! \n");
-    // 새로 들어와서 확장된 녀석을 root (== heap_listp)의 SUCC으로 바꿔준다.
-    // PUT_ADDRESS(SUCC_LOC(heap_listp), NEXT_BLKP(heap_listp));
     return 0;
 }
 
@@ -315,7 +297,7 @@ static void *find_fit(size_t asize)
         strt = SUCC(strt);
         if (strt == NULL)
             break;
-        // printf("strt : %p\n", strt);
+
         if (GET_SIZE(HDRP(strt)) >= asize && !GET_ALLOC(HDRP(strt)))
         {
             return strt;
@@ -469,7 +451,6 @@ void *mm_realloc(void *ptr, size_t size)
         nxtblock = NEXT_BLKP(oldptr);
         nxtSize = GET_SIZE(HDRP(nxtblock));
 
-        // printf("PRED(nxtblock) : %p\n", PRED(nxtblock));
         // 여기 조심해야 됨!!! "2*DSIZE"로 업그레이드 해주기
         if (!(GET_ALLOC(HDRP(nxtblock))) &&
             ((nxtSize - 2 * DSIZE) >= (newSize - copySize)))
@@ -477,34 +458,19 @@ void *mm_realloc(void *ptr, size_t size)
 
             void *succ_nxtblock = SUCC(nxtblock);
             void *pred_nxtblock = PRED(nxtblock);
-            // printf("succ_nxtblock : %p\n", succ_nxtblock);
-            // printf("pred_nxtblock : %p\n", pred_nxtblock);
-
             // printf("나 들어왔어요\n");
             PUT(HDRP(oldptr), PACK(newSize, 1));
             PUT(FTRP(oldptr), PACK(newSize, 1));
 
-            // printf("A\n");
             // 새로워진 다음 block
             PUT(HDRP(NEXT_BLKP(oldptr)), PACK(nxtSize - (newSize - copySize), 0));
             PUT(FTRP(NEXT_BLKP(oldptr)), PACK(nxtSize - (newSize - copySize), 0));
 
             // PRED & SUCC 이식
-            // printf("B\n");
 
             // ***** SUCC 주소가 덮어 씌어질 수 있다. *****
             PUT_ADDRESS(SUCC_LOC(NEXT_BLKP(oldptr)), succ_nxtblock);
             PUT_ADDRESS(PRED_LOC(NEXT_BLKP(oldptr)), pred_nxtblock);
-
-            // printf("succ_nxtblock : %p\n", succ_nxtblock);
-            // printf("pred_nxtblock : %p\n", pred_nxtblock);
-
-            // printf("C- SUCC_LOC((PRED(nxtblock)) : %p, PRED(nxtblock) : %p \n",
-            //        SUCC_LOC((PRED(nxtblock))), PRED(nxtblock));
-            // printf("nxtSize : %d, 요구size : %d, 기존size : %d\n", nxtSize, newSize, copySize);
-            // printf("nxtblock : %p, heap_listp : %p, PRED(nxtblock) : %p, NEXT_BLKP(oldptr) : %p\n",
-            //        nxtblock, heap_listp, PRED(nxtblock), NEXT_BLKP(oldptr));
-            // printf("pred_nxtblock : %p, succ_loc(pred_nxtblock):%p\n", pred_nxtblock, SUCC_LOC(pred_nxtblock));
 
             PUT_ADDRESS(SUCC_LOC(pred_nxtblock), NEXT_BLKP(oldptr));
 
@@ -518,7 +484,6 @@ void *mm_realloc(void *ptr, size_t size)
         }
     }
     newptr = mm_malloc(size);
-    // printf("D\n");
 
     // cut
     if (newSize < copySize)
