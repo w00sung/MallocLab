@@ -91,6 +91,9 @@ static char *heap_listp;
 // 내가 연결되어 있던 녀석끼리 연결시키기
 static void change(void *bp)
 {
+    /*gojae's review
+    change함수를 따로 만들어서 사용하는 것이 nice하네요.
+    */
 
     // NULL 배열은 다음에만 올 수 있다.
     PUT_ADDRESS(SUCC_LOC(PRED(bp)), SUCC(bp));
@@ -101,6 +104,10 @@ static void change(void *bp)
 
 static void connect_root(void *bp)
 {
+    /*gojae's review
+    if 조건문에 (void*)의 이유를 잘 모르겠습니다. SUCC를 통해 찾아간 값이 NULL인지 아닌지 보려면
+    (void*)형 변환 문을 빼는 것이 보기에 nice하다고 느껴집니다.
+    */
 
     // 루트-> 나 -> 루트's 이전 다음 을 연결 시키기
     PUT_ADDRESS(PRED_LOC(bp), heap_listp);
