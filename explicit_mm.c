@@ -76,11 +76,11 @@ team_t team = {
 // PRED_LOC & SUCC_LOC 주소는 포인터를 저장하고 있는 곳의 주소이다.
 
 // *(char *)PRED_LOC(bp)와 또 다르다.
-// #define PRED(bp) (*(char **)PRED_LOC(bp))
-// #define SUCC(bp) (*(char **)SUCC_LOC(bp))
+#define PRED(bp) (*(char **)PRED_LOC(bp))
+#define SUCC(bp) (*(char **)SUCC_LOC(bp))
 
-#define PRED(bp) GET(PRED_LOC(bp))
-#define SUCC(bp) GET(SUCC_LOC(bp))
+// #define PRED(bp) GET(PRED_LOC(bp))
+// #define SUCC(bp) GET(SUCC_LOC(bp))
 
 /* 블락 포인터 bp에 대해서, 다음 block 과 이전 block 얻어오기 */
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp)-WSIZE))) // Next Block ptr : payload ptr + block Size (get from my Header)
@@ -130,6 +130,8 @@ static void *coalesce(void *bp)
     /* 모두 할당되어 있는 경우 : 나만 FREE */
     if (prev_alloc && next_alloc)
     {
+        // printf("A, heap listp's SUCC : %p\n", SUCC(heap_listp));
+
         /* PUT PREV & SUCC on myself */
         /* "루트 -> 나 -> 루트's" 이전 SUCC 연결 시켜주기 */
 
@@ -139,6 +141,8 @@ static void *coalesce(void *bp)
     /* prev block만 free인 경우 */
     else if (!prev_alloc && next_alloc)
     {
+        // printf("B, heap listp's SUCC : %p\n", SUCC(heap_listp));
+
         // prev block의 size를 얻어온다. (from its Footer)
         size += GET_SIZE(HDRP(PREV_BLKP(bp)));
 
@@ -160,6 +164,7 @@ static void *coalesce(void *bp)
         char *nxt_blkp = NEXT_BLKP(bp);
         // next block의 size를 얻어온다. (from its Header)
 
+        // printf("C, heap listp's SUCC : %p\n", SUCC(heap_listp));
         /* "루트 -> 나 -> 루트's" 이전 SUCC 연결 시켜주기 */
         connect_root(bp);
 
@@ -178,6 +183,8 @@ static void *coalesce(void *bp)
     /* 모두 free인 경우 */
     else
     {
+        // printf("D, heap listp's SUCC : %p\n", SUCC(heap_listp));
+
         char *old_next = NEXT_BLKP(bp);
 
         size += (GET_SIZE(HDRP(PREV_BLKP(bp))) +
@@ -437,7 +444,7 @@ void mm_free(void *bp)
  */
 void *mm_realloc(void *ptr, size_t size)
 {
-    printf("realloc\n");
+    // printf("realloc\n");
     void *oldptr = ptr;
     void *newptr;
 
@@ -461,10 +468,18 @@ void *mm_realloc(void *ptr, size_t size)
         // 현재 다음 block
         nxtblock = NEXT_BLKP(oldptr);
         nxtSize = GET_SIZE(HDRP(nxtblock));
+
+        // printf("PRED(nxtblock) : %p\n", PRED(nxtblock));
         // 여기 조심해야 됨!!! "2*DSIZE"로 업그레이드 해주기
         if (!(GET_ALLOC(HDRP(nxtblock))) &&
             ((nxtSize - 2 * DSIZE) >= (newSize - copySize)))
         {
+
+            void *succ_nxtblock = SUCC(nxtblock);
+            void *pred_nxtblock = PRED(nxtblock);
+            // printf("succ_nxtblock : %p\n", succ_nxtblock);
+            // printf("pred_nxtblock : %p\n", pred_nxtblock);
+
             // printf("나 들어왔어요\n");
             PUT(HDRP(oldptr), PACK(newSize, 1));
             PUT(FTRP(oldptr), PACK(newSize, 1));
@@ -476,19 +491,27 @@ void *mm_realloc(void *ptr, size_t size)
 
             // PRED & SUCC 이식
             // printf("B\n");
-            PUT_ADDRESS(SUCC_LOC(NEXT_BLKP(oldptr)), SUCC(nxtblock));
-            PUT_ADDRESS(PRED_LOC(NEXT_BLKP(oldptr)), PRED(nxtblock));
 
-            printf("C- SUCC_LOC((PRED(nxtblock)) : %p, PRED(nxtblock) : %p \n",
-                   SUCC_LOC((PRED(nxtblock))), PRED(nxtblock));
-            printf("nxtSize : %d, 요구size : %d, 기존size : %d\n", nxtSize, newSize, copySize);
-            printf("nxtblock : %p, heap_listp : %p, PRED(nxtblock) : %p, NEXT_BLKP(oldptr) : %p\n",
-                   nxtblock, heap_listp, PRED(nxtblock), NEXT_BLKP(oldptr));
-            PUT_ADDRESS(SUCC_LOC((PRED(nxtblock))), NEXT_BLKP(oldptr));
-            if (SUCC(nxtblock) != NULL)
+            // ***** SUCC 주소가 덮어 씌어질 수 있다. *****
+            PUT_ADDRESS(SUCC_LOC(NEXT_BLKP(oldptr)), succ_nxtblock);
+            PUT_ADDRESS(PRED_LOC(NEXT_BLKP(oldptr)), pred_nxtblock);
+
+            // printf("succ_nxtblock : %p\n", succ_nxtblock);
+            // printf("pred_nxtblock : %p\n", pred_nxtblock);
+
+            // printf("C- SUCC_LOC((PRED(nxtblock)) : %p, PRED(nxtblock) : %p \n",
+            //        SUCC_LOC((PRED(nxtblock))), PRED(nxtblock));
+            // printf("nxtSize : %d, 요구size : %d, 기존size : %d\n", nxtSize, newSize, copySize);
+            // printf("nxtblock : %p, heap_listp : %p, PRED(nxtblock) : %p, NEXT_BLKP(oldptr) : %p\n",
+            //        nxtblock, heap_listp, PRED(nxtblock), NEXT_BLKP(oldptr));
+            // printf("pred_nxtblock : %p, succ_loc(pred_nxtblock):%p\n", pred_nxtblock, SUCC_LOC(pred_nxtblock));
+
+            PUT_ADDRESS(SUCC_LOC(pred_nxtblock), NEXT_BLKP(oldptr));
+
+            if (succ_nxtblock != NULL)
             {
-                printf("나 들어왔어요\n");
-                PUT_ADDRESS(PRED_LOC((SUCC(nxtblock))), NEXT_BLKP(oldptr));
+                // printf("나 들어왔어요\n");
+                PUT_ADDRESS(PRED_LOC((succ_nxtblock)), NEXT_BLKP(oldptr));
             }
 
             return oldptr;
