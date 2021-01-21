@@ -72,6 +72,10 @@ static char *heap_listp;
 static char *next_fitp;
 static void *coalesce(void *bp)
 {
+    /*gojae's review
+    coalesce에 대해 크게 할 말은 없습니다.
+    다만 마지막 next_fitp를 활용하기 위해 굳이 if문이 필요할까요?
+    */
     size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
     size_t size = GET_SIZE(HDRP(bp));
@@ -159,6 +163,10 @@ static void *extend_heap(size_t words)
 // tricky한 변수
 int mm_init(void)
 {
+    /*gojae's review
+    init은 크게 말씀 드릴 것이 없습니다.
+    */
+
     /* 초기 empty heap */
     /* 초기 4 워드 만들고, NULL인지 확인한다.) */
     if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1)
@@ -191,6 +199,12 @@ int mm_init(void)
 /* First Fit */
 static void *find_fit(size_t asize)
 {
+    /*gojae's review
+    first fit방법도 잘 구현한 것 같습니다. 
+    그런데, while 옆에 조건문을 보면 이 while문은 epilogue를 찾으러 가는 느낌이 드는데
+    fit을 찾으러 가는 느낌을 위해 if문과 while문 조건을 바꾸는 것이 더 nice할 것 같습니다.
+    */
+
     char *strt = heap_listp;
     // Size가 0이면 while 문 멈춘다.
     while (GET_SIZE(HDRP(strt)))
@@ -209,6 +223,12 @@ static void *find_fit(size_t asize)
 // while 문으로 고쳐보자!
 static void *find_next_fit(size_t asize)
 {
+    /*gojae's review
+    제가 제대로 이해 못한 걸 수도 있는데, 만약 fit위치가 현재 힙 영역에 없어서 extend가 필요한 경우
+    next_fit할 때 최초 시작지점(next_fitp)~epilogue 까지 돌고, 다시 처음부터 epilogue까지
+    도는 코드처럼 보이는데 next_fitp의 위치를 활용한다면 더 효율적일 것 같습니다.
+    */
+
     char *strt = next_fitp;
 
     // for (; GET_SIZE(HDRP(next_fitp)) > 0; next_fitp = NEXT_BLKP(next_fitp))
@@ -287,6 +307,9 @@ static void place(void *bp, size_t asize)
 
 static size_t makeSize(size_t size)
 {
+    /*gojae's review
+    size조절하는 함수를 따로 만든 것은 아주 nice해 보입니다.
+    */
     size_t asize; /* 적용될 size */
 
     /* Header & Footer + Align 조건 충족 */
@@ -357,6 +380,10 @@ void mm_free(void *bp)
  */
 void *mm_realloc(void *ptr, size_t size)
 {
+    /*gojae's review
+    realloc에서 이렇게 사이즈별로 경우를 나눈 것이 아주 nice합니다.
+    고민의 흔적이 느껴져 멋있네요.
+    */
     void *oldptr = ptr;
     void *newptr;
 
